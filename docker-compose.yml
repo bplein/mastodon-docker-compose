@@ -1,0 +1,118 @@
+version: '3'
+services:
+  db:
+    restart: always
+    image: postgres:14-alpine
+    shm_size: 256mb
+    networks:
+      - internal_network
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'mastodon', '-d', 'mastodon_production']
+    volumes:
+      - ./postgres14:/var/lib/postgresql/data
+      - ./postgres-backup:/var/lib/postgres/backup
+    environment:
+      - 'POSTGRES_HOST_AUTH_METHOD=trust'
+      - 'POSTGRES_USER=mastodon'
+      - 'POSTGRES_PASSWORD=8d9f8234e0bcbf7a3357685093d2505c367368a8'
+      - 'POSTGRES_DB=mastodon_production'
+  redis:
+    restart: always
+    image: redis:7-alpine
+    networks:
+      - internal_network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+    volumes:
+      - ./redis:/data
+  es:
+    restart: always
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.4
+    environment:
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m -Des.enforce.bootstrap.checks=true"
+      - "xpack.license.self_generated.type=basic"
+      - "xpack.security.enabled=false"
+      - "xpack.watcher.enabled=false"
+      - "xpack.graph.enabled=false"
+      - "xpack.ml.enabled=false"
+      - "bootstrap.memory_lock=true"
+      - "cluster.name=es-mastodon"
+      - "discovery.type=single-node"
+      - "thread_pool.write.queue_size=1000"
+    networks:
+      - internal_network
+    healthcheck:
+       test: ["CMD-SHELL", "curl --silent --fail es:9200/_cluster/health || exit 1"]
+    volumes:
+       - ./elasticsearch/data:/usr/share/elasticsearch/data
+       - ./elasticsearch/logs:/usr/share/elasticsearch/logs
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+  web:
+    image: "tootsuite/mastodon:${DOCKER_IMAGE_TAG}"
+    restart: always
+    env_file: .env.production
+    environment:
+      NGINX_HOST: ${LOCAL_DOMAIN}
+      NGINX_PORT: 80
+      TZ: ${TZ}
+      VIRTUAL_HOST: ${LOCAL_DOMAIN}
+      VIRTUAL_PATH: "/"
+      LETSENCRYPT_HOST: ${LOCAL_DOMAIN}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+    command: bash -c "rm -f /mastodon/tmp/pids/server.pid; bundle exec rails s -p 80"
+    networks:
+      - internal_network
+      - external_network
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider --proxy=off web:80/health || exit 1']
+    depends_on:
+      - db
+      - redis
+      - es
+    volumes:
+      - ./public/system:/mastodon/public/system
+  streaming:
+    image: "tootsuite/mastodon:${DOCKER_IMAGE_TAG}"
+    restart: always
+    env_file: .env.production
+    environment:
+      VIRTUAL_HOST: ${LOCAL_DOMAIN}
+      VIRTUAL_PATH: "/api/v1/streaming"
+      VIRTUAL_PORT: 4000
+    command: node ./streaming
+    networks:
+      - internal_network
+      - external_network
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider --proxy=off streaming:4000/api/v1/streaming/health || exit 1']
+    depends_on:
+      - db
+      - redis
+  sidekiq:
+    image: "tootsuite/mastodon:${DOCKER_IMAGE_TAG}"
+    restart: always
+    env_file: .env.production
+    command: bundle exec sidekiq
+    depends_on:
+      - db
+      - redis
+    networks:
+      - internal_network
+      - external_network
+    volumes:
+      - ./public/system:/mastodon/public/system
+    healthcheck:
+      test: ['CMD-SHELL', "ps aux | grep '[s]idekiq\ 6' || false"]
+networks:
+  external_network:
+    external:
+      name: ${EXTERNAL_NETWORK}
+  internal_network:
+    external:
+      name: ${INTERNAL_NETWORK}
