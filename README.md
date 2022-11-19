@@ -2,6 +2,14 @@
 
 The goal of this repo is to provide a simple way to configure and deploy an instance of Mastodon using a released image (vs. building your own).
 
+## Prequisites:
+Docker-compose v2 or newer
+A containerized nginx-proxy, we recommend https://github.com/nginx-proxy/nginx-proxy along with https://github.com/nginx-proxy/acme-companion for LetsEncrypt automation. 
+
+We will publish a simple working example of those with docker-compose to go along with this repo.
+
+If you are using an external nginx that expects to reach the web and streaming servers via a port, there will be a second docker-compose.yml published later with the appropriate edits.
+
 ## Prepare your environment
 
 Clone this repository and then rename the directory to whatever you like, probably representing the name of the Mastodon instance (especially if you want to run several different instances)
