@@ -19,32 +19,32 @@ CD to the directory and then run these commands to prep the filesystem:
 Prepare directory for elastic https://www.elastic.co/guide/en/elasticsearch/reference/master/docker.html
 
 ```
-mkdir -p ./elasticsearch/data
-mkdir -p ./elasticsearch/logs
-chmod -R g+rwx ./elasticsearch
-chgrp -R 0 ./elasticsearch
+sudo mkdir -p ./elasticsearch/data
+sudo mkdir -p ./elasticsearch/logs
+sudo chmod -R g+rwx ./elasticsearch
+sudo chgrp -R 0 ./elasticsearch
 ```
 
 Prepare public directory for proper permissions
 ```
-mkdir -p ./public/system
-chmod -R 644 ./public
-chown -R 991 ./public
+sudo mkdir -p ./public/system
+sudo chown -R 991:991 ./public
+sudo chmod -R 755 ./public
 ```
 
 Prepare host for elastic. https://www.elastic.co/guide/en/elasticsearch/reference/master/docker.html
 Increase vm.max_map_count to at least 262144 (prevents crash in elastic)
 ```
-sysctl -w vm.max_map_count=262144 
-echo "vm.max_map_count = 262144" > /etc/sysctl.d/11.mastodon.conf
+sudo sysctl -w vm.max_map_count=262144 
+sudo echo "vm.max_map_count = 262144" > /etc/sysctl.d/11.mastodon.conf
 ```
 
-Run once and add to .env, without clobbering anything in there
+Run once and manually add to .env, without clobbering anything in there
 ```
 docker-compose run --rm web bundle exec rake mastodon:webpush:generate_vapid_key
 ```
 
-Run twice for secrets, update into your .env
+Run twice for secrets, manually update into your .env
 ```
 docker-compose run --rm web bundle exec rake secret
 ```
