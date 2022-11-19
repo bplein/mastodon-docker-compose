@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# read in our env
-source .env
 
 # THIS IS NOT YET A SOLUTION. RUN THESE MANUALLY
 
@@ -20,9 +18,6 @@ chown -R 991 ./public
 # increase vm.max_map_count to at least 262144 (prevents crash in elastic)
 # sysctl -w vm.max_map_count=262144 
 # echo "vm.max_map_count = 262144" > /etc/sysctl.d/11.mastodon.conf
-
-# create a network based on the internal network name in the env
-docker network create --internal "${INTERNAL_NETWORK}"
 
 # run once and add to .env, without clobbering anything in there
 docker-compose run --rm web bundle exec rake mastodon:webpush:generate_vapid_key
