@@ -63,3 +63,12 @@ docker-compose down
 docker-compose up -d
 ```
 
+## Access your site
+
+You should now be able to go to your site and create your userid. This will create a normal (not admin) user.
+
+After creating the user (and validating email), run `tootctl` to elevate your user to `Owner` (v4.0.0 and later) or `Admin` (pre 4.0)
+
+```
+docker-compose run --rm web bin/tootctl accounts modify <username> --role Owner
+```
