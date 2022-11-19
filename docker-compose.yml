@@ -12,10 +12,10 @@ services:
       - ./postgres14:/var/lib/postgresql/data
       - ./postgres-backup:/var/lib/postgres/backup
     environment:
-      - 'POSTGRES_HOST_AUTH_METHOD=trust'
-      - 'POSTGRES_USER=mastodon'
-      - 'POSTGRES_PASSWORD=8d9f8234e0bcbf7a3357685093d2505c367368a8'
-      - 'POSTGRES_DB=mastodon_production'
+#      - 'POSTGRES_HOST_AUTH_METHOD=trust'
+      - 'POSTGRES_USER=${DB_USER}'
+      - 'POSTGRES_PASSWORD=${DB_PASS}'
+      - 'POSTGRES_DB=${DB_NAME}'
   redis:
     restart: always
     image: redis:7-alpine
@@ -111,8 +111,7 @@ services:
       test: ['CMD-SHELL', "ps aux | grep '[s]idekiq\ 6' || false"]
 networks:
   external_network:
-    external:
       name: ${EXTERNAL_NETWORK}
+      external: true
   internal_network:
-    external:
-      name: ${INTERNAL_NETWORK}
+    internal: true

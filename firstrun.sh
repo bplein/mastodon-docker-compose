@@ -2,6 +2,8 @@
 # read in our env
 source .env
 
+# THIS IS NOT YET A SOLUTION. RUN THESE MANUALLY
+
 # prepare directory for elastic https://www.elastic.co/guide/en/elasticsearch/reference/master/docker.html
 
 mkdir -p ./elasticsearch/data
