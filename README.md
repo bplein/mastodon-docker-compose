@@ -27,7 +27,7 @@ chown -R 991 ./public
 Prepare host for elastic. https://www.elastic.co/guide/en/elasticsearch/reference/master/docker.html
 Increase vm.max_map_count to at least 262144 (prevents crash in elastic)
 ```
- sysctl -w vm.max_map_count=262144 
+sysctl -w vm.max_map_count=262144 
 echo "vm.max_map_count = 262144" > /etc/sysctl.d/11.mastodon.conf
 ```
 
