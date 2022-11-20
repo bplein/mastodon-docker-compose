@@ -2,6 +2,8 @@
 
 The goal of this repo is to provide a simple way to configure and deploy an instance of Mastodon using a released image (vs. building your own).
 
+The official Mastodon Github repository at https://github.com/mastodon/mastodon has a `docker-compose.yml` file but I found that it could be optimized more for my liking. My goals were to move all of the editable configuration into `.env` and leave the `docker-compose.yml` file as generic as possible across all use cases.
+
 ## Prequisites:
 - Docker-compose v2 or newer
 - A containerized nginx-proxy, we recommend https://github.com/nginx-proxy/nginx-proxy along with https://github.com/nginx-proxy/acme-companion for LetsEncrypt automation. 

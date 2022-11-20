@@ -12,7 +12,6 @@ services:
       - ./postgres14:/var/lib/postgresql/data
       - ./postgres-backup:/var/lib/postgres/backup
     environment:
-#      - 'POSTGRES_HOST_AUTH_METHOD=trust'
       - 'POSTGRES_USER=${DB_USER}'
       - 'POSTGRES_PASSWORD=${DB_PASS}'
       - 'POSTGRES_DB=${DB_NAME}'
@@ -69,6 +68,10 @@ services:
     networks:
       - internal_network
       - external_network
+  #  Only used when used with an external non-containerized proxy that doesn't have access 
+  #  to the docker networks directly.
+  #  ports:
+  #    - '127.0.0.1:3000:3000'
     healthcheck:
       test: ['CMD-SHELL', 'wget -q --spider --proxy=off web:80/health || exit 1']
     depends_on:
@@ -89,6 +92,10 @@ services:
     networks:
       - internal_network
       - external_network
+  #  Only used when used with an external non-containerized proxy that doesn't have access 
+  #  to the docker networks directly.
+  #   ports:
+  #     - '127.0.0.1:4000:4000'
     healthcheck:
       test: ['CMD-SHELL', 'wget -q --spider --proxy=off streaming:4000/api/v1/streaming/health || exit 1']
     depends_on:
