@@ -64,7 +64,10 @@ Restart everything
 docker-compose down
 docker-compose up -d
 ```
-
+Initialize Elasticsearch (ES)
+```
+docker-compose run --rm web tootctl search deploy
+```
 ## Access your site
 
 You should now be able to go to your site and create your userid. This will create a normal (not admin) user.
