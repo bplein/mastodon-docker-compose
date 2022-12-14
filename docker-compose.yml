@@ -3,7 +3,6 @@ services:
   db:
     restart: always
     image: postgres:14-alpine
-    shm_size: 256mb
     networks:
       - internal_network
     healthcheck:
@@ -57,21 +56,26 @@ services:
     restart: always
     env_file: .env.production
     environment:
+      WEB_CONCURRENCY: 3
+      MAX_THREADS: 10
+      DB_POOL: 25
+      LD_PRELOAD: libjemalloc.so.2
       NGINX_HOST: ${LOCAL_DOMAIN}
-      NGINX_PORT: 80
+      NGINX_PORT: ${WEB_VIRTUAL_PORT}
       TZ: ${TZ}
       VIRTUAL_HOST: ${LOCAL_DOMAIN}
       VIRTUAL_PATH: "/"
+      VIRTUAL_PORT: ${WEB_VIRTUAL_PORT}
       LETSENCRYPT_HOST: ${LOCAL_DOMAIN}
       LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
-    command: bash -c "rm -f /mastodon/tmp/pids/server.pid; bundle exec rails s -p 80"
+    command: bash -c "rm -f /mastodon/tmp/pids/server.pid; bundle exec rails s -p ${WEB_VIRTUAL_PORT}"
     networks:
       - internal_network
       - external_network
   #  Only used when used with an external non-containerized proxy that doesn't have access 
   #  to the docker networks directly.
   #  ports:
-  #    - '127.0.0.1:3000:3000'
+  #    - '127.0.0.1:${WEB_VIRTUAL_PORT}:${WEB_VIRTUAL_PORT}'
     healthcheck:
       test: ['CMD-SHELL', 'wget -q --spider --proxy=off web:80/health || exit 1']
     depends_on:
@@ -85,9 +89,10 @@ services:
     restart: always
     env_file: .env.production
     environment:
-      VIRTUAL_HOST: ${LOCAL_DOMAIN}
+      VIRTUAL_HOST: bvp.me
       VIRTUAL_PATH: "/api/v1/streaming"
-      VIRTUAL_PORT: 4000
+      VIRTUAL_PORT: ${STREAMING_VIRTUAL_PORT}
+      DB_POOL: 25
     command: node ./streaming
     networks:
       - internal_network
@@ -95,17 +100,59 @@ services:
   #  Only used when used with an external non-containerized proxy that doesn't have access 
   #  to the docker networks directly.
   #   ports:
-  #     - '127.0.0.1:4000:4000'
+  #     - '127.0.0.1:${STREAMING_VIRTUAL_PORT}:${STREAMING_VIRTUAL_PORT}'
     healthcheck:
-      test: ['CMD-SHELL', 'wget -q --spider --proxy=off streaming:4000/api/v1/streaming/health || exit 1']
+      test: ['CMD-SHELL', 'wget -q --spider --proxy=off streaming:${STREAMING_VIRTUAL_PORT}/api/v1/streaming/health || exit 1']
     depends_on:
       - db
       - redis
-  sidekiq:
+  sidekiq-default:
     image: "tootsuite/mastodon:${DOCKER_IMAGE_TAG}"
     restart: always
     env_file: .env.production
-    command: bundle exec sidekiq
+    environment:
+      MALLOC_ARENA_MAX: 2
+      DB_POOL: 25
+      LD_PRELOAD: libjemalloc.so.2
+    command: bundle exec sidekiq -q default -c 20
+    depends_on:
+      - db
+      - redis
+    networks:
+      - internal_network
+      - external_network
+    volumes:
+      - ./public/system:/mastodon/public/system
+    healthcheck:
+      test: ['CMD-SHELL', "ps aux | grep '[s]idekiq\ 6' || false"]
+  sidekiq-ingress:
+    image: "tootsuite/mastodon:${DOCKER_IMAGE_TAG}"
+    restart: always
+    env_file: .env.production
+    environment:
+      DB_POOL: 25
+      MALLOC_ARENA_MAX: 2
+      LD_PRELOAD: libjemalloc.so.2
+    command: bundle exec sidekiq -q ingress -c 20
+    depends_on:
+      - db
+      - redis
+    networks:
+      - internal_network
+      - external_network
+    volumes:
+      - ./public/system:/mastodon/public/system
+    healthcheck:
+      test: ['CMD-SHELL', "ps aux | grep '[s]idekiq\ 6' || false"]
+  sidekiq-others:
+    image: "tootsuite/mastodon:${DOCKER_IMAGE_TAG}"
+    restart: always
+    env_file: .env.production
+    environment:
+      DB_POOL: 25
+      MALLOC_ARENA_MAX: 2
+      LD_PRELOAD: libjemalloc.so.2
+    command: bundle exec sidekiq -c 20 -q push -q pull -q scheduler -q mailers
     depends_on:
       - db
       - redis
