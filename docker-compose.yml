@@ -89,7 +89,7 @@ services:
     restart: always
     env_file: .env.production
     environment:
-      VIRTUAL_HOST: bvp.me
+      VIRTUAL_HOST: ${LOCAL_DOMAIN}
       VIRTUAL_PATH: "/api/v1/streaming"
       VIRTUAL_PORT: ${STREAMING_VIRTUAL_PORT}
       DB_POOL: 25
@@ -114,7 +114,7 @@ services:
       MALLOC_ARENA_MAX: 2
       DB_POOL: 25
       LD_PRELOAD: libjemalloc.so.2
-    command: bundle exec sidekiq -q default -c 20
+    command: bundle exec sidekiq -q default -c 25
     depends_on:
       - db
       - redis
@@ -133,7 +133,7 @@ services:
       DB_POOL: 25
       MALLOC_ARENA_MAX: 2
       LD_PRELOAD: libjemalloc.so.2
-    command: bundle exec sidekiq -q ingress -c 20
+    command: bundle exec sidekiq -q ingress -c 25
     depends_on:
       - db
       - redis
@@ -152,7 +152,7 @@ services:
       DB_POOL: 25
       MALLOC_ARENA_MAX: 2
       LD_PRELOAD: libjemalloc.so.2
-    command: bundle exec sidekiq -c 20 -q push -q pull -q scheduler -q mailers
+    command: bundle exec sidekiq -c 25 -q push -q pull -q scheduler -q mailers
     depends_on:
       - db
       - redis
