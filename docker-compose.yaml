@@ -1,0 +1,203 @@
+version: '3'
+services:
+  db:
+    restart: unless-stopped
+    image: postgres:14-alpine
+    networks:
+      - internal_network
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'mastodon', '-d', 'mastodon_production']
+    volumes:
+      - ./postgres14:/var/lib/postgresql/data
+      - ./postgres-backup:/var/lib/postgres/backup
+    environment:
+      - 'POSTGRES_USER=${DB_USER}'
+      - 'POSTGRES_PASSWORD=${DB_PASS}'
+      - 'POSTGRES_DB=${DB_NAME}'
+  redis:
+    restart: unless-stopped
+    image: redis:7-alpine
+    networks:
+      - internal_network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+    volumes:
+      - ./redis:/data
+  es:
+    restart: unless-stopped
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.4
+    environment:
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m -Des.enforce.bootstrap.checks=true"
+      - "xpack.license.self_generated.type=basic"
+      - "xpack.security.enabled=false"
+      - "xpack.watcher.enabled=false"
+      - "xpack.graph.enabled=false"
+      - "xpack.ml.enabled=false"
+      - "bootstrap.memory_lock=true"
+      - "cluster.name=es-mastodon"
+      - "discovery.type=single-node"
+      - "thread_pool.write.queue_size=1000"
+    networks:
+      - internal_network
+    healthcheck:
+       test: ["CMD-SHELL", "curl --silent --fail es:9200/_cluster/health || exit 1"]
+    volumes:
+       - ./elasticsearch/data:/usr/share/elasticsearch/data
+       - ./elasticsearch/logs:/usr/share/elasticsearch/logs
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+  web:
+    image: "${DOCKER_IMAGE_REPO}:${DOCKER_IMAGE_TAG}"
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      WEB_CONCURRENCY: 3
+      MAX_THREADS: 10
+      DB_POOL: 25
+      LD_PRELOAD: libjemalloc.so.2
+      NGINX_HOST: ${LOCAL_DOMAIN}
+      NGINX_PORT: ${WEB_VIRTUAL_PORT}
+      TZ: ${TZ}
+      VIRTUAL_HOST: ${LOCAL_DOMAIN}
+      VIRTUAL_PATH: "/"
+      VIRTUAL_PORT: ${WEB_VIRTUAL_PORT}
+      LETSENCRYPT_HOST: ${LOCAL_DOMAIN}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+    command: bash -c "rm -f /mastodon/tmp/pids/server.pid; bundle exec rails s -p ${WEB_VIRTUAL_PORT}"
+    networks:
+      - internal_network
+      - external_network
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider --proxy=off web:${WEB_VIRTUAL_PORT}/health || exit 1']
+    depends_on:
+      - db
+      - redis
+      - es
+    volumes:
+      - ./public/system:/mastodon/public/system
+      - ./security.txt:/mastodon/public/.well-known/security.txt
+  streaming:
+    image: "${DOCKER_STREAMING_IMAGE_REPO}:${DOCKER_IMAGE_TAG}"
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      NGINX_HOST: ${LOCAL_DOMAIN}
+      NGINX_PORT: ${WEB_VIRTUAL_PORT}
+      VIRTUAL_HOST: ${LOCAL_DOMAIN}
+      VIRTUAL_PATH: "/api/v1/streaming"
+      VIRTUAL_PORT: ${STREAMING_VIRTUAL_PORT}
+      DB_POOL: 25
+    command: node ./streaming
+    networks:
+      - internal_network
+      - external_network
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider --proxy=off streaming:${STREAMING_VIRTUAL_PORT}/api/v1/streaming/health || exit 1']
+    depends_on:
+      - db
+      - redis
+  sidekiq-default:
+    image: "${DOCKER_IMAGE_REPO}:${DOCKER_IMAGE_TAG}"
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      MALLOC_ARENA_MAX: 2
+      DB_POOL: 25
+      LD_PRELOAD: libjemalloc.so.2
+    command: bundle exec sidekiq -c 25 -q default -q ingress -q push -q pull
+    depends_on:
+      - db
+      - redis
+    networks:
+      - internal_network
+      - external_network
+    volumes:
+      - ./public/system:/mastodon/public/system
+    healthcheck:
+      test: ['CMD-SHELL', "ps aux | grep '[s]idekiq\ 6' || false"]
+  sidekiq-ingress:
+    image: "${DOCKER_IMAGE_REPO}:${DOCKER_IMAGE_TAG}"
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DB_POOL: 25
+      MALLOC_ARENA_MAX: 2
+      LD_PRELOAD: libjemalloc.so.2
+    command: bundle exec sidekiq -c 25 -q ingress -q default -q pull -q push 
+    depends_on:
+      - db
+      - redis
+    networks:
+      - internal_network
+      - external_network
+    volumes:
+      - ./public/system:/mastodon/public/system
+    healthcheck:
+      test: ['CMD-SHELL', "ps aux | grep '[s]idekiq\ 6' || false"]
+  sidekiq-push:
+    image: "${DOCKER_IMAGE_REPO}:${DOCKER_IMAGE_TAG}"
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DB_POOL: 25
+      MALLOC_ARENA_MAX: 2
+      LD_PRELOAD: libjemalloc.so.2
+    command: bundle exec sidekiq -c 25 -q push -q ingress -q default -q pull  
+    depends_on:
+      - db
+      - redis
+    networks:
+      - internal_network
+      - external_network
+    volumes:
+      - ./public/system:/mastodon/public/system
+    healthcheck:
+      test: ['CMD-SHELL', "ps aux | grep '[s]idekiq\ 6' || false"]
+  sidekiq-pull:
+    image: "${DOCKER_IMAGE_REPO}:${DOCKER_IMAGE_TAG}"
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DB_POOL: 10
+      MALLOC_ARENA_MAX: 2
+      LD_PRELOAD: libjemalloc.so.2
+    command: bundle exec sidekiq -c 25 -q pull -q ingress -q default -q push 
+    depends_on:
+      - db
+      - redis
+    networks:
+      - internal_network
+      - external_network
+    volumes:
+      - ./public/system:/mastodon/public/system
+    healthcheck:
+      test: ['CMD-SHELL', "ps aux | grep '[s]idekiq\ 6' || false"]
+  sidekiq-scheduler-mailer:
+    image: "${DOCKER_IMAGE_REPO}:${DOCKER_IMAGE_TAG}"
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DB_POOL: 25
+      MALLOC_ARENA_MAX: 2
+      LD_PRELOAD: libjemalloc.so.2
+    command: bundle exec sidekiq -c 25 -q mailers -q scheduler
+    depends_on:
+      - db
+      - redis
+    networks:
+      - internal_network
+      - external_network
+    volumes:
+      - ./public/system:/mastodon/public/system
+networks:
+  external_network:
+      name: ${EXTERNAL_NETWORK}
+      external: true
+  internal_network:
+      name: ${INTERNAL_NETWORK}
+      external: true
