@@ -20,7 +20,20 @@ If you are using an external nginx that expects to reach the web and streaming s
 
 Clone this repository and then rename the directory to whatever you like, probably representing the name of the Mastodon instance (especially if you want to run several different instances)
 
-CD to the directory and then run these commands to prep the filesystem:
+CD to the directory and edit the `.env` file to reflect all of your settings. Pay attention to S3 and CDN settings: These must be up and running and tested prior to configuring Mastodon. This setup does not (and cannot) create and manage these external systems!
+
+Next, after saving `.env` and ensuring that `.env.production` is a symlink of `.env`, then run these commands to prep the filesystem:
+
+First, let's pull in `.env` so that subsequent commands run in the same shell pick up the settings.
+```
+source .env
+```
+
+Next, create the "internal" network for Mastodon (strictly speaking, this is a Docker "external" network which means it is managed external to the deployment/project. For our purposes, it's "internal" because it is not exposed to the internet)
+
+```
+docker network create --internal "${INTERNAL_NETWORK}"
+```
 
 Prepare directory for elastic https://www.elastic.co/guide/en/elasticsearch/reference/master/docker.html
 
@@ -47,11 +60,13 @@ sudo echo "vm.max_map_count = 262144" > /etc/sysctl.d/11.mastodon.conf
 
 Generate your secrets and add them to the `.env` before continuing!:
 ```
-# run to generate the VAPID public and private keys and add to .env, without clobbering anything in there
+# Run to generate the VAPID public and private keys and add to .env, without clobbering anything in there
 docker-compose run --rm web bundle exec rake mastodon:webpush:generate_vapid_key
-# run to generate the ACTIVE_RECORD_ENCRYPTION keys and add to .env, without clobbering anything in there
+
+# Run to generate the ACTIVE_RECORD_ENCRYPTION keys and add to .env, without clobbering anything in there
 docker-compose run --rm web bundle exec bin/rails db:encryption:init
-# twice for secrets, once for OTP_SECRET and once for SECRET_KEY_BASE, and add to .env, without clobbering anything in there
+
+# Run twice for secrets, once for OTP_SECRET and once for SECRET_KEY_BASE, and add to .env, without clobbering anything in there
 docker-compose run --rm web bundle exec bin/rails secret
 docker-compose run --rm web bundle exec bin/rails secret
 ```
@@ -62,15 +77,17 @@ Did you update `.env` per above? Good! Continue...
 
 Finalize the database migrations, deploy search, and initialize your admin user:
 ```
-# finalize any database migration
+# Finalize any database migration
 docker-compose run --rm web rails db:migrate
 
 # Start everything
 docker-compose up -d
-# create the admin user. The password is shown, but this user can also use password recovery to log in.
-docker-compose run --rm web bin/tootctl account create "${ADMIN_USER}" --email="${ADMIN_EMAIL}" --confirmed --role=Owner --approve
+
 # Initialize Elastic Search
 docker-compose run --rm web bin/tootctl search deploy --only=accounts
+
+# Create the admin user. The password is shown, but this user can also use password recovery to log in.
+docker-compose run --rm web bin/tootctl account create "${ADMIN_USER}" --email="${ADMIN_EMAIL}" --confirmed --role=Owner --approve
 ```
 ## Access your site
 
