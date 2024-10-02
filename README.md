@@ -12,9 +12,7 @@ NOTE: The current version of this docker-compose file and setup instructions sup
 - Docker-compose v2 or newer
 - A containerized nginx-proxy, we recommend https://github.com/nginx-proxy/nginx-proxy along with https://github.com/nginx-proxy/acme-companion for LetsEncrypt automation. 
 
-We will publish a simple working example of those with docker-compose to go along with this repo.
-
-If you are using an external nginx that expects to reach the web and streaming servers via a port, there will be a second docker-compose.yml published later with the appropriate edits.
+I would like to publish my nginx setup as well, but who knows when I will get to it.  If you use a non-dockerized nginx to front-end your site, you'll have to work out those changes yourself.
 
 ## Prepare your environment
 
